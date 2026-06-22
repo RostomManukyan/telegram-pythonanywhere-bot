@@ -35,6 +35,8 @@ def test_handle_message_calls_ask_ai():
         mock_send.assert_called_once_with(msg, "AI reply")
 
 
+
+
 def test_handle_message_skips_when_not_responding():
     with (
         patch("bot.handlers.should_respond", return_value=False),
@@ -114,6 +116,52 @@ def test_handle_message_mention_only_skipped():
         handle_message(msg)
         mock_ask.assert_not_called()
 
+# __ /start _________________
+
+
+def test_cmd_start():
+    with patch("bot.handlers.bot") as mock_bot:
+        from bot.handlers import cmd_start
+
+        cmd_start(make_message())
+
+        mock_bot.send_message.assert_called_once()
+
+        sent = mock_bot.send_message.call_args[0][1]
+
+        assert "Hello! I'm your AI assistant." in sent
+        assert "/help" in sent
+
+# __ /roll _________________
+
+def test_cmd_roll():
+    with patch("bot.handlers.bot") as mock_bot:
+        from bot.handlers import cmd_roll
+
+        cmd_roll(make_message())
+
+        mock_bot.send_message.assert_called_once()
+
+        sent = mock_bot.send_message.call_args[0][1]
+
+        assert sent.startswith("Your number is ")
+
+        num = int(sent.split()[-1])
+        assert 1 <= num <= 6
+
+# __ /joke _________________
+
+def test_cmd_joke():
+    with patch("bot.handlers.bot") as mock_bot:
+        from bot.handlers import cmd_joke
+
+        cmd_joke(make_message())
+
+        mock_bot.send_message.assert_called_once()
+
+        sent = mock_bot.send_message.call_args[0][1]
+
+        assert "Why don't scientists trust atoms? Because they make up everything." in sent
 
 # ── /about ────────────────────────────────────────────────────────────────────
 

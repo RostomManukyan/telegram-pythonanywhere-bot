@@ -60,6 +60,8 @@ def cmd_help(message):
         "/help  — show this message",
         "/reset — clear conversation history",
         "/about — about this bot",
+        "/joke  - one static joke",
+        "/roll  - random number in range 1-6",
     ]
     if HF_SPACE_ID:
         lines.append("/model — switch AI provider")
@@ -71,6 +73,21 @@ def cmd_reset(message):
     clear_history(message.from_user.id)
     bot.send_message(message.chat.id, "Conversation cleared. Starting fresh!")
 
+@bot.message_handler(commands=["joke"], func=is_allowed)
+def cmd_joke(message):
+    bot.send_message(
+    message.chat.id,
+    "Why don't scientists trust atoms? Because they make up everything.",
+ )
+
+@bot.message_handler(commands=["roll"], func=is_allowed)
+def cmd_roll(message):
+    from random import randint as r
+    num=r(1,6)
+    bot.send_message(
+    message.chat.id,
+    f"Your number is {num}",
+ )
 
 @bot.message_handler(commands=["about"], func=is_allowed)
 def cmd_about(message):
