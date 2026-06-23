@@ -45,27 +45,42 @@ def _log(message, direction: str, text: str) -> None:
     print(f"[{ts}] {sender} → {receiver}: {snippet}", flush=True)
 
 
+from bot.ai import ask_ai
+
+from bot.ai import ask_ai  # make sure correct import
+
 @bot.message_handler(commands=["start"], func=is_allowed)
 def cmd_start(message):
-    bot.send_message(
-        message.chat.id,
-        "Hello! I'm your AI assistant. Send me a message to get started.\n\nUse /help to see available commands.",
-    )
+    prompt = """
+    Generate a short welcome message for a student using an AI learning assistant.
 
+    Requirements:
+    - Friendly and natural tone
+    - Explain that the bot teaches step by step
+    - Encourage the user to ask questions
+    - Mention /help briefly
+    - Keep it short
+    """
+
+    response = ask_ai(message.from_user.id, prompt)
+
+    bot.send_message(message.chat.id, response)
 
 @bot.message_handler(commands=["help"], func=is_allowed)
 def cmd_help(message):
-    lines = [
-        "/start — welcome message",
-        "/help  — show this message",
-        "/reset — clear conversation history",
-        "/about — about this bot",
-        "/joke  - one static joke",
-        "/roll  - random number in range 1-6",
-    ]
-    if HF_SPACE_ID:
-        lines.append("/model — switch AI provider")
-    bot.send_message(message.chat.id, "\n".join(lines))
+    prompt = """
+    Generate a help message for an AI learning assistant.
+
+    Include:
+    - List of commands: /start, /help, /reset, /about, /joke, /roll
+    - Explain each briefly
+    - Encourage learning and asking questions
+    - Keep it short and clearly
+    """
+
+    response = ask_ai(message.from_user.id, prompt)
+
+    bot.send_message(message.chat.id, response)
 
 
 @bot.message_handler(commands=["reset"], func=is_allowed)
@@ -75,10 +90,14 @@ def cmd_reset(message):
 
 @bot.message_handler(commands=["joke"], func=is_allowed)
 def cmd_joke(message):
-    bot.send_message(
-    message.chat.id,
-    "Why don't scientists trust atoms? Because they make up everything.",
- )
+    prompt="""
+    Generate the short joke
+    """
+
+    reply = ask_ai(message.from_user.id, prompt)
+    
+
+    bot.send_message(message.chat.id, reply)
 
 @bot.message_handler(commands=["roll"], func=is_allowed)
 def cmd_roll(message):
@@ -89,25 +108,27 @@ def cmd_roll(message):
     f"Your number is {num}",
  )
 
+from bot.ai import ask_ai
+
 @bot.message_handler(commands=["about"], func=is_allowed)
 def cmd_about(message):
-    if HF_SPACE_ID:
-        provider = get_provider(message.from_user.id)
-        model_line = f"{MODEL} (main)" if provider == "main" else f"{HF_SPACE_ID} (hf)"
-    else:
-        model_line = MODEL
-    storage_line = "SQLite" if store is not None else "stateless (no memory)"
-    lines = [
-        f"Model  : {model_line}",
-        f"Storage: {storage_line}",
-        f"Hosting: {HOSTING_LABEL}",
-    ]
-    if COMMIT_SHA:
-        lines.append(f"Version: {COMMIT_SHA}")
-    bot.send_message(message.chat.id, "\n".join(lines))
+    prompt = """
+    Generate an "About" message for an AI learning assistant bot.
 
+    Requirements:
+    - Explain that this is an AI educational assistant
+    - Its purpose is to help users learn step by step
+    - Mention that it uses simple explanations, examples, and practice exercises
+    - Keep the tone friendly, supportive, and motivating
+    - Keep it short and clear (not too technical)
+    - End with an encouraging sentence
+    - Keep it short
+    """
 
-if HF_SPACE_ID:
+    response = ask_ai(message.from_user.id, prompt)
+
+    bot.send_message(message.chat.id, response)
+
 
     @bot.message_handler(commands=["model"], func=is_allowed)
     def cmd_model(message):

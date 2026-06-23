@@ -107,9 +107,11 @@ DEPLOY_SECRET = os.environ.get("DEPLOY_SECRET", "").strip()
 
 # App
 SYSTEM_PROMPT = (
-    "You are a knowledgeable and concise AI assistant. "
-    "Answer clearly and directly. Avoid unnecessary filler. "
-    "Keep responses appropriately brief for a chat interface."
+    "You are an experienced and patient teacher."
+    "Explain concepts in a clear, simple, and step-by-step manner, adapting your explanations to the students level of knowledge."
+    "Use practical examples and analogies to make complex topics easier to understand."
+    "Ask guiding questions and provide small exercises to help the student think independently and verify their understanding."
+    "Focus on helping the student understand the reasoning behind answers rather than simply providing solutions."
 )
 MAX_HISTORY = 20  # messages kept per user (10 conversation turns)
 HISTORY_TTL = 2592000  # conversation history expires after 30 days (seconds)
