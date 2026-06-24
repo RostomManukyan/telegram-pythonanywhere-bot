@@ -116,21 +116,22 @@ def test_handle_message_mention_only_skipped():
         handle_message(msg)
         mock_ask.assert_not_called()
 
-# __ /start _________________
-
-
-def test_cmd_start():
+# __ /coin _________________
+def test_cmd_coin():
     with patch("bot.handlers.bot") as mock_bot:
-        from bot.handlers import cmd_start
+        from bot.handlers import cmd_coin
 
-        cmd_start(make_message())
+        cmd_coin(make_message())
 
         mock_bot.send_message.assert_called_once()
 
         sent = mock_bot.send_message.call_args[0][1]
 
-        assert "Hello! I'm your AI assistant." in sent
-        assert "/help" in sent
+        assert sent.startswith("It came up ")
+
+        res = sent.split()[-1]
+        assert res=="heads" or res=="tails"
+
 
 # __ /roll _________________
 
@@ -149,20 +150,167 @@ def test_cmd_roll():
         num = int(sent.split()[-1])
         assert 1 <= num <= 6
 
-# __ /joke _________________
+# __ /start _________________
+
+
+def test_cmd_start():
+    with patch("bot.handlers.ask_ai") as mock_ai:
+        with patch("bot.handlers.bot") as mock_bot:
+            from bot.handlers import cmd_start
+
+            mock_ai.return_value = "Welcome! I'm your AI learning assistant."
+
+            msg = make_message()
+
+            cmd_start(msg)
+
+            mock_ai.assert_called_once()
+
+            mock_bot.send_message.assert_called_once_with(
+                msg.chat.id,
+                "Welcome! I'm your AI learning assistant."
+            )
+# __ /help  _________________
+def test_cmd_help():
+    with patch("bot.handlers.ask_ai") as mock_ai:
+        with patch("bot.handlers.bot") as mock_bot:
+            from bot.handlers import cmd_help
+
+            mock_ai.return_value = "Help message"
+
+            msg = make_message()
+            msg.from_user.id = 123
+
+            cmd_help(msg)
+
+            mock_ai.assert_called_once()
+
+            # Check correct user id was passed
+            assert mock_ai.call_args[0][0] == 123
+
+            # Check prompt contains expected content
+            prompt = mock_ai.call_args[0][1]
+            assert "help message" in prompt.lower()
+            assert "/start" in prompt
+            assert "/help" in prompt
+            assert "/reset" in prompt
+
+            mock_bot.send_message.assert_called_once_with(
+                msg.chat.id,
+                "Help message"
+            )
 
 def test_cmd_joke():
-    with patch("bot.handlers.bot") as mock_bot:
-        from bot.handlers import cmd_joke
+    with patch("bot.handlers.ask_ai") as mock_ai:
+        with patch("bot.handlers.bot") as mock_bot:
+            from bot.handlers import cmd_joke
 
-        cmd_joke(make_message())
+            msg = make_message()
+            msg.text = "/joke cats"
+            msg.from_user.id = 123
 
-        mock_bot.send_message.assert_called_once()
+            mock_ai.return_value = "Funny cat joke"
 
-        sent = mock_bot.send_message.call_args[0][1]
+            cmd_joke(msg)
 
-        assert "Why don't scientists trust atoms? Because they make up everything." in sent
+            mock_ai.assert_called_once_with(
+                123,
+                "Tell me short, clean joke with topic cats."
+            )
 
+            mock_bot.send_message.assert_called_once_with(
+                msg.chat.id,
+                "Funny cat joke"
+            )
+
+
+def test_cmd_joke_no_topic():
+    with patch("bot.handlers.ask_ai") as mock_ai:
+        with patch("bot.handlers.bot") as mock_bot:
+            from bot.handlers import cmd_joke
+
+            msg = make_message()
+            msg.text = "/joke"
+            msg.from_user.id = 123
+
+            mock_ai.return_value = "Funny joke"
+
+            cmd_joke(msg)
+
+            mock_ai.assert_called_once_with(
+                123,
+                "Tell me short, clean joke with topic any you want."
+            )
+
+            mock_bot.send_message.assert_called_once_with(
+                msg.chat.id,
+                "Funny joke"
+            )
+
+
+def test_cmd_quote():
+    with patch("bot.handlers.ask_ai") as mock_ai:
+        with patch("bot.handlers.bot") as mock_bot:
+            from bot.handlers import cmd_quote
+
+            msg = make_message()
+            msg.from_user.id = 123
+
+            mock_ai.return_value = "Believe in yourself."
+
+            cmd_quote(msg)
+
+            mock_ai.assert_called_once()
+            mock_bot.send_message.assert_called_once_with(
+                msg.chat.id,
+                "Believe in yourself."
+            )
+
+
+def test_cmd_fact():
+    with patch("bot.handlers.ask_ai") as mock_ai:
+        with patch("bot.handlers.bot") as mock_bot:
+            from bot.handlers import cmd_fact
+
+            msg = make_message()
+            msg.from_user.id = 123
+
+            mock_ai.return_value = "Honey never spoils."
+
+            cmd_fact(msg)
+
+            mock_ai.assert_called_once_with(
+                123,
+                "Tell me short, clean fact"
+            )
+
+            mock_bot.send_message.assert_called_once_with(
+                msg.chat.id,
+                "Honey never spoils."
+            )
+
+
+def test_cmd_compliment():
+    with patch("bot.handlers.ask_ai") as mock_ai:
+        with patch("bot.handlers.bot") as mock_bot:
+            from bot.handlers import cmd_compliment
+
+            msg = make_message()
+            msg.from_user.id = 123
+
+            mock_ai.return_value = "You're doing great!"
+
+            cmd_compliment(msg)
+
+            mock_ai.assert_called_once_with(
+                123,
+                "Tell me short, clean complimend"
+            )
+
+            mock_bot.send_message.assert_called_once_with(
+                msg.chat.id,
+                "You're doing great!"
+            )
 # ── /about ────────────────────────────────────────────────────────────────────
 
 

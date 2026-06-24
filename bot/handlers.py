@@ -72,7 +72,7 @@ def cmd_help(message):
     Generate a help message for an AI learning assistant.
 
     Include:
-    - List of commands: /start, /help, /reset, /about, /joke, /roll
+    - List of commands: /start, /help, /reset, /about, /joke <topic>, /roll(a random number 1,6), /fact, /compliment, /quote, /coin, /magic8(say yes/no), /roast <name>, /remember <key> <note>(remember an info by key), /recall <key>(recall a notes by key), /notes(show saved notes), /forget <key>(forget note by key)
     - Explain each briefly
     - Encourage learning and asking questions
     - Keep it short and clearly
@@ -90,13 +90,27 @@ def cmd_reset(message):
 
 @bot.message_handler(commands=["joke"], func=is_allowed)
 def cmd_joke(message):
-    prompt="""
-    Generate the short joke
-    """
+    name = message.text.split(maxsplit=1)[1] if " " in message.text else "any you want"
+    reply = ask_ai(message.from_user.id, f"Tell me short, clean joke with topic {name}.")
+    bot.send_message(message.chat.id, reply)
 
+@bot.message_handler(commands=["quote"], func=is_allowed)
+def cmd_quote(message):
+    prompt="Act as a profound philosopher and poet. Your task is to write a single, original, and highly impactful motivational sentence."
     reply = ask_ai(message.from_user.id, prompt)
-    
+    bot.send_message(message.chat.id, reply)
 
+@bot.message_handler(commands=["fact"], func=is_allowed)
+def cmd_fact(message):
+    prompt="Tell me short, clean fact"
+    reply = ask_ai(message.from_user.id, prompt)
+    bot.send_message(message.chat.id, reply)
+
+
+@bot.message_handler(commands=["compliment"], func=is_allowed)
+def cmd_compliment(message):
+    prompt="Tell me short, clean complimend"
+    reply = ask_ai(message.from_user.id, prompt)
     bot.send_message(message.chat.id, reply)
 
 @bot.message_handler(commands=["roll"], func=is_allowed)
@@ -108,7 +122,178 @@ def cmd_roll(message):
     f"Your number is {num}",
  )
 
+@bot.message_handler(commands=["coin"], func=is_allowed)
+def cmd_coin(message):
+    from random import randint as r
+    num=r(0,1)
+    if num==0:
+        res="heads"
+    else:
+        res="tails"
+    bot.send_message(
+    message.chat.id,
+    f"It came up {res}",
+ )
+
+@bot.message_handler(commands=["magic8"], func=is_allowed)
+def cmd_magic8(message):
+    from random import randint as r
+    num=r(0,1)
+    if num==0:
+        res="yes"
+    else:
+        res="no"
+    bot.send_message(
+    message.chat.id,
+    f"Magic 8 ball say {res}",
+ )
 from bot.ai import ask_ai
+
+import json
+
+
+@bot.message_handler(commands=["remember"], func=is_allowed)
+def cmd_remember(message):
+    parts = message.text.split(maxsplit=2)
+
+    if len(parts) < 3:
+        bot.send_message(
+            message.chat.id,
+            "Usage: /remember <key> <note>"
+        )
+        return
+
+    key = parts[1]
+    note = parts[2]
+
+    notes = store.get(f"notes:{message.from_user.id}")
+
+    if notes:
+        notes = json.loads(notes)
+    else:
+        notes = {}
+
+    notes[key] = note
+
+    store.set(
+        f"notes:{message.from_user.id}",
+        json.dumps(notes)
+    )
+
+    bot.send_message(
+        message.chat.id,
+        f"Saved note under key '{key}'"
+    )
+
+
+@bot.message_handler(commands=["recall"], func=is_allowed)
+def cmd_recall(message):
+    parts = message.text.split(maxsplit=1)
+
+    if len(parts) < 2:
+        bot.send_message(
+            message.chat.id,
+            "Usage: /recall <key>"
+        )
+        return
+
+    key = parts[1]
+
+    notes = store.get(f"notes:{message.from_user.id}")
+
+    if notes:
+        notes = json.loads(notes)
+    else:
+        notes = {}
+
+    if key in notes:
+        bot.send_message(
+            message.chat.id,
+            f"{key}: {notes[key]}"
+        )
+    else:
+        bot.send_message(
+            message.chat.id,
+            f"No note found with key '{key}'"
+        )
+
+
+@bot.message_handler(commands=["notes"], func=is_allowed)
+def cmd_notes(message):
+    notes = store.get(f"notes:{message.from_user.id}")
+
+    if not notes:
+        bot.send_message(
+            message.chat.id,
+            "No notes saved."
+        )
+        return
+
+    notes = json.loads(notes)
+
+    if not notes:
+        bot.send_message(
+            message.chat.id,
+            "No notes saved."
+        )
+        return
+
+    keys = "\n".join(notes.keys())
+
+    bot.send_message(
+        message.chat.id,
+        f"Saved keys:\n{keys}"
+    )
+
+@bot.message_handler(commands=["forget"], func=is_allowed)
+def cmd_forget(message):
+    parts = message.text.split(maxsplit=1)
+
+    if len(parts) < 2:
+        bot.send_message(
+            message.chat.id,
+            "Usage: /forget <key>"
+        )
+        return
+
+    key = parts[1]
+
+    notes = store.get(f"notes:{message.from_user.id}")
+
+    if not notes:
+        bot.send_message(
+            message.chat.id,
+            "No notes saved."
+        )
+        return
+
+    notes = json.loads(notes)
+
+    if key not in notes:
+        bot.send_message(
+            message.chat.id,
+            f"No note found with key '{key}'."
+        )
+        return
+
+    del notes[key]
+
+    store.set(
+        f"notes:{message.from_user.id}",
+        json.dumps(notes)
+    )
+
+    bot.send_message(
+        message.chat.id,
+        f"Forgot note '{key}'."
+    )
+
+
+@bot.message_handler(commands=["roast"], func=is_allowed)
+def cmd_roast(message):
+    name = message.text.split(maxsplit=1)[1] if " " in message.text else "you"
+    reply = ask_ai(message.from_user.id, f"Write a short, playful, friendly roast of {name}.")
+    bot.send_message(message.chat.id, reply)
 
 @bot.message_handler(commands=["about"], func=is_allowed)
 def cmd_about(message):
