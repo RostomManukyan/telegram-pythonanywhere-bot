@@ -62,6 +62,7 @@ def cmd_start(message):
     - Keep it short
     """
 
+
     response = ask_ai(message.from_user.id, prompt)
 
     bot.send_message(message.chat.id, response)
