@@ -192,18 +192,25 @@ def test_cmd_about_logic():
           assert mock_bot.send_message.called
 
 def _get_cmd_model():
+      """Helper to reload handlers and retrieve the cmd_model function."""
       import importlib
       import bot.config
       import bot.handlers
-      # Force the config and the handler to see the HF_SPACE_ID
+
+      # 1. Set the config value
       bot.config.HF_SPACE_ID = "fake/space"
+      # 2. Set the handler's local reference to the config value
       bot.handlers.HF_SPACE_ID = "fake/space"
+      # 3. Reload the module to trigger the logic that attaches cmd_model
       importlib.reload(bot.handlers)
+
       return getattr(bot.handlers, "cmd_model", None)
+
+
 
 def test_cmd_model_switch_to_hf():
       cmd_model = _get_cmd_model()
-      assert cmd_model is not None
+      assert cmd_model is not None, "cmd_model was not found after reload. Check if HF_SPACE_ID is being set correctly in handlers.py"
       with (
           patch("bot.handlers.set_provider", return_value=True),
           patch("bot.handlers.get_provider", return_value="main"),
@@ -213,11 +220,15 @@ def test_cmd_model_switch_to_hf():
           cmd_model(msg)
           mock_bot.send_message.assert_called()
 
+
+
 def test_cmd_model_invalid_choice():
       cmd_model = _get_cmd_model()
-      assert cmd_model is not None
+      assert cmd_model is not None, "cmd_model was not found after reload."
+
       with patch("bot.handlers.bot") as mock_bot:
           msg = make_message(text="/model bogus")
           cmd_model(msg)
           args, _ = mock_bot.send_message.call_args
           assert "Invalid" in args[1]
+
