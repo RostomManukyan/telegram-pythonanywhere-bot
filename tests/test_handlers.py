@@ -1,6 +1,6 @@
-  from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock
 
-  def make_message(text="hello", user_id=123, chat_id=456, chat_type="private"):
+def make_message(text="hello", user_id=123, chat_id=456, chat_type="private"):
       msg = MagicMock()
       msg.text = text
       msg.from_user.id = user_id
@@ -13,7 +13,7 @@
 
   # --- CORE MESSAGE HANDLING TESTS ---
 
-  def test_handle_message_calls_ask_ai():
+def test_handle_message_calls_ask_ai():
       with (
           patch("bot.handlers.should_respond", return_value=True),
           patch("bot.handlers.is_rate_limited", return_value=False),
@@ -28,7 +28,7 @@
           mock_ask.assert_called_once_with(123, "hello")
           mock_send.assert_called_once_with(msg, "AI reply")
 
-  def test_handle_message_rate_limited():
+def test_handle_message_rate_limited():
       with (
           patch("bot.handlers.should_respond", return_value=True),
           patch("bot.handlers.is_rate_limited", return_value=True),
@@ -44,7 +44,7 @@
 
   # --- COMMAND TESTS (FIXED FOR NEW PROMPTS) ---
 
-  def test_cmd_start():
+def test_cmd_start():
       with patch("bot.handlers.ask_ai") as mock_ai, patch("bot.handlers.bot") as mock_bot:
           from bot.handlers import cmd_start
           mock_ai.return_value = "Welcome!"
@@ -56,7 +56,7 @@
           assert "student" in prompt or "user" in prompt
           mock_bot.send_message.assert_called_once_with(msg.chat.id, "Welcome!")
 
-  def test_cmd_help():
+def test_cmd_help():
       with patch("bot.handlers.ask_ai") as mock_ai, patch("bot.handlers.bot") as mock_bot:
           from bot.handlers import cmd_help
           mock_ai.return_value = "Help Guide"
@@ -69,7 +69,7 @@
           assert "command" in prompt
           mock_bot.send_message.assert_called_once_with(msg.chat.id, "Help Guide")
 
-  def test_cmd_joke():
+def test_cmd_joke():
       with patch("bot.handlers.ask_ai") as mock_ai, patch("bot.handlers.bot") as mock_bot:
           from bot.handlers import cmd_joke
           msg = make_message(text="/joke cats")
@@ -82,7 +82,7 @@
 
   # --- PROGRAMMING ASSISTANT TESTS ---
 
-  def test_cmd_explain():
+def test_cmd_explain():
       with patch("bot.handlers.ask_ai") as mock_ai, patch("bot.handlers.bot") as mock_bot:
           from bot.handlers import cmd_explain
           msg = make_message(text="/explain print('hi')")
@@ -93,7 +93,7 @@
           assert "explain" in prompt
           mock_bot.send_message.assert_called_once_with(msg.chat.id, "Explanation")
 
-  def test_cmd_debug():
+def test_cmd_debug():
       with patch("bot.handlers.ask_ai") as mock_ai, patch("bot.handlers.bot") as mock_bot:
           from bot.handlers import cmd_debug
           msg = make_message(text="/debug x = 1/0")
@@ -104,7 +104,7 @@
           assert "debug" in prompt
           mock_bot.send_message.assert_called_once_with(msg.chat.id, "Error")
 
-  def test_cmd_refactor():
+def test_cmd_refactor():
       with patch("bot.handlers.ask_ai") as mock_ai, patch("bot.handlers.bot") as mock_bot:
           from bot.handlers import cmd_refactor
           msg = make_message(text="/refactor code")
@@ -114,7 +114,7 @@
           assert "refactor" in prompt
           mock_bot.send_message.assert_called_once_with(msg.chat.id, "Refactored")
 
-  def test_cmd_convert_success():
+def test_cmd_convert_success():
       with patch("bot.handlers.ask_ai") as mock_ai, patch("bot.handlers.bot") as mock_bot:
           from bot.handlers import cmd_convert
           msg = make_message(text="/convert print('hi') python javascript")
@@ -126,7 +126,7 @@
           assert "print('hi')" in prompt
           mock_bot.send_message.assert_called_once_with(msg.chat.id, mock_ai.return_value, parse_mode="Markdown")
 
-  def test_cmd_convert_invalid_usage():
+def test_cmd_convert_invalid_usage():
       with patch("bot.handlers.bot") as mock_bot:
           from bot.handlers import cmd_convert
           msg = make_message(text="/convert short")
@@ -136,7 +136,7 @@
 
   # --- MODEL COMMAND TESTS (FIXED TYPEERRORS) ---
 
-  def _get_cmd_model():
+def _get_cmd_model():
       import importlib
       import bot.config
       import bot.handlers
@@ -145,7 +145,7 @@
       importlib.reload(bot.handlers)
       return getattr(bot.handlers, "cmd_model", None)
 
-  def test_cmd_model_switch_to_hf():
+def test_cmd_model_switch_to_hf():
       cmd_model = _get_cmd_model()
       assert cmd_model is not None
       with (
@@ -159,7 +159,7 @@
           from bot.handlers import set_provider
           mock_bot.send_message.assert_called()
 
-  def test_cmd_model_invalid_choice():
+def test_cmd_model_invalid_choice():
       cmd_model = _get_cmd_model()
       with patch("bot.handlers.bot") as mock_bot:
           msg = make_message(text="/model bogus")
