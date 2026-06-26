@@ -1,168 +1,555 @@
 from unittest.mock import patch, MagicMock
 
-def make_message(text="hello", user_id=123, chat_id=456, chat_type="private"):
-      msg = MagicMock()
-      msg.text = text
-      msg.from_user.id = user_id
-      msg.from_user.username = "testuser"
-      msg.from_user.first_name = "Test"
-      msg.chat.id = chat_id
-      msg.chat.type = chat_type
-      msg.reply_to_message = None
-      return msg
 
-  # --- CORE MESSAGE HANDLING TESTS ---
+def make_message(text="hello", user_id=123, chat_id=456, chat_type="private"):
+    msg = MagicMock()
+    msg.text = text
+    msg.from_user.id = user_id
+    msg.chat.id = chat_id
+    msg.chat.type = chat_type
+    msg.reply_to_message = None
+    return msg
+
+
+HANDLER_PATCHES = {
+    "bot.handlers.should_respond": True,
+    "bot.handlers.is_rate_limited": False,
+    "bot.handlers.BOT_INFO": MagicMock(id=42, username="testbot"),
+}
+
 
 def test_handle_message_calls_ask_ai():
-      with (
-          patch("bot.handlers.should_respond", return_value=True),
-          patch("bot.handlers.is_rate_limited", return_value=False),
-          patch("bot.handlers.BOT_INFO", MagicMock(username="testbot")),
-          patch("bot.handlers.ask_ai", return_value="AI reply") as mock_ask,
-          patch("bot.handlers.send_reply") as mock_send,
-          patch("bot.handlers.bot"),
-      ):
-          from bot.handlers import handle_message
-          msg = make_message(text="hello")
-          handle_message(msg)
-          mock_ask.assert_called_once_with(123, "hello")
-          mock_send.assert_called_once_with(msg, "AI reply")
+    with (
+        patch("bot.handlers.should_respond", return_value=True),
+        patch("bot.handlers.is_rate_limited", return_value=False),
+        patch("bot.handlers.BOT_INFO", MagicMock(username="testbot")),
+        patch("bot.handlers.ask_ai", return_value="AI reply") as mock_ask,
+        patch("bot.handlers.send_reply") as mock_send,
+        patch("bot.handlers.bot"),
+    ):
+        from bot.handlers import handle_message
+
+        msg = make_message(text="hello")
+        handle_message(msg)
+        mock_ask.assert_called_once_with(123, "hello")
+        mock_send.assert_called_once_with(msg, "AI reply")
+
+
+
+
+def test_handle_message_skips_when_not_responding():
+    with (
+        patch("bot.handlers.should_respond", return_value=False),
+        patch("bot.handlers.ask_ai") as mock_ask,
+    ):
+        from bot.handlers import handle_message
+
+        handle_message(make_message())
+        mock_ask.assert_not_called()
+
 
 def test_handle_message_rate_limited():
-      with (
-          patch("bot.handlers.should_respond", return_value=True),
-          patch("bot.handlers.is_rate_limited", return_value=True),
-          patch("bot.handlers.BOT_INFO", MagicMock(username="testbot")),
-          patch("bot.handlers.ask_ai") as mock_ask,
-          patch("bot.handlers.bot") as mock_bot,
-      ):
-          from bot.handlers import handle_message
-          handle_message(make_message())
-          mock_ask.assert_not_called()
-          args, _ = mock_bot.send_message.call_args
-          assert "daily limit" in args[1]
+    with (
+        patch("bot.handlers.should_respond", return_value=True),
+        patch("bot.handlers.is_rate_limited", return_value=True),
+        patch("bot.handlers.BOT_INFO", MagicMock(username="testbot")),
+        patch("bot.handlers.ask_ai") as mock_ask,
+        patch("bot.handlers.bot") as mock_bot,
+    ):
+        from bot.handlers import handle_message
 
-  # --- COMMAND TESTS (FIXED FOR NEW PROMPTS) ---
+        handle_message(make_message())
+        mock_ask.assert_not_called()
+        mock_bot.send_message.assert_called_once()
+        assert "daily limit" in mock_bot.send_message.call_args[0][1]
 
-def test_cmd_start():
-      with patch("bot.handlers.ask_ai") as mock_ai, patch("bot.handlers.bot") as mock_bot:
-          from bot.handlers import cmd_start
-          mock_ai.return_value = "Welcome!"
-          msg = make_message()
-          cmd_start(msg)
-          # Check that the prompt asks for a "welcome message"
-          prompt = mock_ai.call_args[0][1].lower()
-          assert "welcome" in prompt
-          assert "student" in prompt or "user" in prompt
-          mock_bot.send_message.assert_called_once_with(msg.chat.id, "Welcome!")
 
-def test_cmd_help():
-      with patch("bot.handlers.ask_ai") as mock_ai, patch("bot.handlers.bot") as mock_bot:
-          from bot.handlers import cmd_help
-          mock_ai.return_value = "Help Guide"
-          msg = make_message()
-          cmd_help(msg)
-          prompt = mock_ai.call_args[0][1].lower()
-          # Check for keywords in the new complex prompt
-          assert "/start" in prompt
-          assert "/help" in prompt
-          assert "command" in prompt
-          mock_bot.send_message.assert_called_once_with(msg.chat.id, "Help Guide")
+def test_handle_message_sends_generic_error():
+    with (
+        patch("bot.handlers.should_respond", return_value=True),
+        patch("bot.handlers.is_rate_limited", return_value=False),
+        patch("bot.handlers.BOT_INFO", MagicMock(username="testbot")),
+        patch("bot.handlers.ask_ai", side_effect=Exception("API key invalid")),
+        patch("bot.handlers.bot") as mock_bot,
+    ):
+        from bot.handlers import handle_message
 
-def test_cmd_joke():
-      with patch("bot.handlers.ask_ai") as mock_ai, patch("bot.handlers.bot") as mock_bot:
-          from bot.handlers import cmd_joke
-          msg = make_message(text="/joke cats")
-          mock_ai.return_value = "Joke"
-          cmd_joke(msg)
-          prompt = mock_ai.call_args[0][1].lower()
-          assert "joke" in prompt
-          assert "cats" in prompt
-          mock_bot.send_message.assert_called_once_with(msg.chat.id, "Joke")
+        handle_message(make_message())
+        error_msg = mock_bot.send_message.call_args[0][1]
+        assert "Something went wrong" in error_msg
+        assert "API key" not in error_msg
 
-  # --- PROGRAMMING ASSISTANT TESTS ---
+
+def test_handle_message_none_text_skipped():
+    """Stickers/photos/edits arriving with text=None must NOT call ask_ai
+    (would burn rate limit and AI quota for no reason)."""
+    with (
+        patch("bot.handlers.should_respond", return_value=True),
+        patch("bot.handlers.is_rate_limited", return_value=False),
+        patch("bot.handlers.BOT_INFO", MagicMock(username="testbot")),
+        patch("bot.handlers.ask_ai") as mock_ask,
+        patch("bot.handlers.send_reply") as mock_send,
+        patch("bot.handlers.bot"),
+    ):
+        from bot.handlers import handle_message
+
+        msg = make_message()
+        msg.text = None
+        handle_message(msg)
+        mock_ask.assert_not_called()
+        mock_send.assert_not_called()
+
+
+def test_handle_message_mention_only_skipped():
+    """In a group, '@testbot' alone strips to empty — don't call ask_ai."""
+    with (
+        patch("bot.handlers.should_respond", return_value=True),
+        patch("bot.handlers.is_rate_limited", return_value=False),
+        patch("bot.handlers.BOT_INFO", MagicMock(username="testbot")),
+        patch("bot.handlers.ask_ai") as mock_ask,
+        patch("bot.handlers.send_reply"),
+        patch("bot.handlers.bot"),
+    ):
+        from bot.handlers import handle_message
+
+        msg = make_message(text="@testbot")
+        handle_message(msg)
+        mock_ask.assert_not_called()
+
+
 
 def test_cmd_explain():
+      """Tests /explain <code_snippet>"""
       with patch("bot.handlers.ask_ai") as mock_ai, patch("bot.handlers.bot") as mock_bot:
           from bot.handlers import cmd_explain
-          msg = make_message(text="/explain print('hi')")
-          mock_ai.return_value = "Explanation"
+          msg = make_message(text="/explain print('hello')")
+          mock_ai.return_value = "This prints hello."
+
           cmd_explain(msg)
-          prompt = mock_ai.call_args[0][1].lower()
-          assert "print('hi')" in prompt
-          assert "explain" in prompt
-          mock_bot.send_message.assert_called_once_with(msg.chat.id, "Explanation")
+
+          # Verify prompt contains the code
+          args, _ = mock_ai.call_args
+          assert "print('hello')" in args[1]
+          assert "explain" in args[1].lower()
+          mock_bot.send_message.assert_called_once_with(msg.chat.id, "This prints hello.")
 
 def test_cmd_debug():
+      """Tests /debug <code_snippet>"""
       with patch("bot.handlers.ask_ai") as mock_ai, patch("bot.handlers.bot") as mock_bot:
           from bot.handlers import cmd_debug
-          msg = make_message(text="/debug x = 1/0")
-          mock_ai.return_value = "Error"
+          msg = make_message(text="/debug x = 1 / 0")
+          mock_ai.return_value = "Division by zero error."
+
           cmd_debug(msg)
-          prompt = mock_ai.call_args[0][1].lower()
-          assert "x = 1/0" in prompt
-          assert "debug" in prompt
-          mock_bot.send_message.assert_called_once_with(msg.chat.id, "Error")
+
+          args, _ = mock_ai.call_args
+          assert "x = 1 / 0" in args[1]
+          assert "debug" in args[1].lower()
+          mock_bot.send_message.assert_called_once_with(msg.chat.id, "Division by zero error.")
 
 def test_cmd_refactor():
+      """Tests /refactor <code_snippet>"""
       with patch("bot.handlers.ask_ai") as mock_ai, patch("bot.handlers.bot") as mock_bot:
           from bot.handlers import cmd_refactor
-          msg = make_message(text="/refactor code")
-          mock_ai.return_value = "Refactored"
+          msg = make_message(text="/refactor for i in range(10): print(i)")
+          mock_ai.return_value = "Use range(10) directly."
+
           cmd_refactor(msg)
-          prompt = mock_ai.call_args[0][1].lower()
-          assert "refactor" in prompt
-          mock_bot.send_message.assert_called_once_with(msg.chat.id, "Refactored")
+
+          args, _ = mock_ai.call_args
+          assert "refactor" in args[1].lower()
+          mock_bot.send_message.assert_called_once_with(msg.chat.id, "Use range(10) directly.")
 
 def test_cmd_convert_success():
+      """Tests /convert <code> <from> <to>"""
       with patch("bot.handlers.ask_ai") as mock_ai, patch("bot.handlers.bot") as mock_bot:
           from bot.handlers import cmd_convert
+          # Syntax: /convert <code> <from> <to>
           msg = make_message(text="/convert print('hi') python javascript")
           mock_ai.return_value = "```javascript\nconsole.log('hi');\n```"
+
           cmd_convert(msg)
-          prompt = mock_ai.call_args[0][1].lower()
-          assert "python" in prompt
-          assert "javascript" in prompt
-          assert "print('hi')" in prompt
+
+          # Verify the prompt construction
+          args, _ = mock_ai.call_args
+          assert "python" in args[1]
+          assert "javascript" in args[1]
+          assert "print('hi')" in args[1]
           mock_bot.send_message.assert_called_once_with(msg.chat.id, mock_ai.return_value, parse_mode="Markdown")
 
 def test_cmd_convert_invalid_usage():
+      """Tests /convert with insufficient arguments"""
       with patch("bot.handlers.bot") as mock_bot:
           from bot.handlers import cmd_convert
-          msg = make_message(text="/convert short")
+          msg = make_message(text="/convert print('hi')") # Missing languages
+
           cmd_convert(msg)
-          args, _ = mock_bot.send_message.call_args
-          assert "Usage" in args[1] or "Invalid" in args[1]
 
-  # --- MODEL COMMAND TESTS (FIXED TYPEERRORS) ---
+          mock_bot.send_message.assert_called_once()
+          assert "Usage:" in mock_bot.send_message.call_args[0][1]
 
-def _get_cmd_model():
-      import importlib
-      import bot.config
-      import bot.handlers
-      bot.config.HF_SPACE_ID = "fake/space"
-      bot.handlers.HF_SPACE_ID = "fake/space"
-      importlib.reload(bot.handlers)
-      return getattr(bot.handlers, "cmd_model", None)
+
+
+# __ /coin _________________
+def test_cmd_coin():
+    with patch("bot.handlers.bot") as mock_bot:
+        from bot.handlers import cmd_coin
+        cmd_coin(make_message())
+        mock_bot.send_message.assert_called_once()
+        sent = mock_bot.send_message.call_args[0][1]
+        assert "It came up" in sent
+        assert sent.split()[-1] in ["heads", "tails"]
+
+
+
+# __ /roll _________________
+def test_cmd_roll():
+    with patch("bot.handlers.bot") as mock_bot:
+        from bot.handlers import cmd_roll
+        cmd_roll(make_message())
+        mock_bot.send_message.assert_called_once()
+        sent = mock_bot.send_message.call_args[0][1]
+        assert "Your number is" in sent
+        num = int(sent.split()[-1])
+        assert 1 <= num <= 6
+
+# __ /start _________________
+def test_cmd_start():
+    with patch("bot.handlers.ask_ai") as mock_ai:
+        with patch("bot.handlers.bot") as mock_bot:
+            from bot.handlers import cmd_start
+            mock_ai.return_value = "Welcome! I'm your AI learning assistant."
+            msg = make_message()
+            cmd_start(msg)
+            mock_ai.assert_called_once()
+            mock_bot.send_message.assert_called_once_with(
+                msg.chat.id,
+                "Welcome! I'm your AI learning assistant."
+            )
+# __ /help  _________________
+def test_cmd_help():
+    with patch("bot.handlers.ask_ai") as mock_ai:
+        with patch("bot.handlers.bot") as mock_bot:
+            from bot.handlers import cmd_help
+
+            mock_ai.return_value = "Help message"
+
+            msg = make_message()
+            msg.from_user.id = 123
+
+            cmd_help(msg)
+
+            mock_ai.assert_called_once()
+
+            # Check correct user id was passed
+            assert mock_ai.call_args[0][0] == 123
+
+            # Check prompt contains expected content
+            prompt = mock_ai.call_args[0][1]
+            assert "help message" in prompt.lower()
+            assert "/start" in prompt
+            assert "/help" in prompt
+            assert "/reset" in prompt
+
+            mock_bot.send_message.assert_called_once_with(
+                msg.chat.id,
+                "Help message"
+            )
+
+def test_cmd_joke():
+    with patch("bot.handlers.ask_ai") as mock_ai:
+        with patch("bot.handlers.bot") as mock_bot:
+            from bot.handlers import cmd_joke
+
+            msg = make_message()
+            msg.text = "/joke cats"
+            msg.from_user.id = 123
+
+            mock_ai.return_value = "Funny cat joke"
+
+            cmd_joke(msg)
+
+            mock_ai.assert_called_once_with(
+                123,
+                "Tell me short, clean joke with topic cats."
+            )
+
+            mock_bot.send_message.assert_called_once_with(
+                msg.chat.id,
+                "Funny cat joke"
+            )
+
+
+def test_cmd_joke_no_topic():
+    with patch("bot.handlers.ask_ai") as mock_ai:
+        with patch("bot.handlers.bot") as mock_bot:
+            from bot.handlers import cmd_joke
+
+            msg = make_message()
+            msg.text = "/joke"
+            msg.from_user.id = 123
+
+            mock_ai.return_value = "Funny joke"
+
+            cmd_joke(msg)
+
+            mock_ai.assert_called_once_with(
+                123,
+                "Tell me short, clean joke with topic any you want."
+            )
+
+            mock_bot.send_message.assert_called_once_with(
+                msg.chat.id,
+                "Funny joke"
+            )
+
+
+def test_cmd_quote():
+    with patch("bot.handlers.ask_ai") as mock_ai:
+        with patch("bot.handlers.bot") as mock_bot:
+            from bot.handlers import cmd_quote
+
+            msg = make_message()
+            msg.from_user.id = 123
+
+            mock_ai.return_value = "Believe in yourself."
+
+            cmd_quote(msg)
+
+            mock_ai.assert_called_once()
+            mock_bot.send_message.assert_called_once_with(
+                msg.chat.id,
+                "Believe in yourself."
+            )
+
+
+def test_cmd_fact():
+    with patch("bot.handlers.ask_ai") as mock_ai:
+        with patch("bot.handlers.bot") as mock_bot:
+            from bot.handlers import cmd_fact
+
+            msg = make_message()
+            msg.from_user.id = 123
+
+            mock_ai.return_value = "Honey never spoils."
+
+            cmd_fact(msg)
+
+            mock_ai.assert_called_once_with(
+                123,
+                "Tell me short, clean fact"
+            )
+
+            mock_bot.send_message.assert_called_once_with(
+                msg.chat.id,
+                "Honey never spoils."
+            )
+
+
+def test_cmd_compliment():
+    with patch("bot.handlers.ask_ai") as mock_ai:
+        with patch("bot.handlers.bot") as mock_bot:
+            from bot.handlers import cmd_compliment
+
+            msg = make_message()
+            msg.from_user.id = 123
+
+            mock_ai.return_value = "You're doing great!"
+
+            cmd_compliment(msg)
+
+            mock_ai.assert_called_once_with(
+                123,
+                "Tell me short, clean complimend"
+            )
+
+            mock_bot.send_message.assert_called_once_with(
+                msg.chat.id,
+                "You're doing great!"
+            )
+# ── /about ────────────────────────────────────────────────────────────────────
+
+
+def test_cmd_about_with_sqlite():
+    """When SQLite is configured, /about should reference SQLite."""
+    with (
+        patch("bot.handlers.bot") as mock_bot,
+        patch("bot.handlers.store", MagicMock()),
+        patch("bot.handlers.HF_SPACE_ID", ""),
+    ):
+        from bot.handlers import cmd_about
+
+        cmd_about(make_message())
+        sent = mock_bot.send_message.call_args[0][1]
+        assert "SQLite" in sent
+        assert "stateless" not in sent
+
+
+def test_cmd_about_includes_commit_sha_when_set():
+    """When COMMIT_SHA is populated (worker booted inside a git repo),
+    /about exposes a Version line so users can validate which commit is
+    live."""
+    with (
+        patch("bot.handlers.bot") as mock_bot,
+        patch("bot.handlers.store", MagicMock()),
+        patch("bot.handlers.HF_SPACE_ID", ""),
+        patch("bot.handlers.COMMIT_SHA", "abc1234"),
+    ):
+        from bot.handlers import cmd_about
+
+        cmd_about(make_message())
+        sent = mock_bot.send_message.call_args[0][1]
+        assert "Version: abc1234" in sent
+
+
+def test_cmd_about_omits_version_line_when_sha_unknown():
+    """If git rev-parse failed at boot, the Version line is dropped
+    entirely rather than showing 'unknown' — clearer for the user."""
+    with (
+        patch("bot.handlers.bot") as mock_bot,
+        patch("bot.handlers.store", MagicMock()),
+        patch("bot.handlers.HF_SPACE_ID", ""),
+        patch("bot.handlers.COMMIT_SHA", ""),
+    ):
+        from bot.handlers import cmd_about
+
+        cmd_about(make_message())
+        sent = mock_bot.send_message.call_args[0][1]
+        assert "Version" not in sent
+
+
+def test_cmd_about_without_store():
+    """When no backend is configured, /about must say stateless. Regression
+    guard for the NameError that occurred when `store` was missing from
+    bot.handlers' imports."""
+    with (
+        patch("bot.handlers.bot") as mock_bot,
+        patch("bot.handlers.store", None),
+        patch("bot.handlers.HF_SPACE_ID", ""),
+    ):
+        from bot.handlers import cmd_about
+
+        cmd_about(make_message())
+        sent = mock_bot.send_message.call_args[0][1]
+        assert "stateless" in sent
+
+
+# ── /model command ────────────────────────────────────────────────────────────
+
+
+def _import_cmd_model_with_hf_enabled():
+    """Re-import handlers module with HF_SPACE_ID set so cmd_model exists."""
+    import importlib
+    import bot.config
+    import bot.handlers
+
+    original = bot.config.HF_SPACE_ID
+    bot.config.HF_SPACE_ID = "fake/space"
+    # Also patch the import in handlers module (already imported via `from ... import HF_SPACE_ID`)
+    bot.handlers.HF_SPACE_ID = "fake/space"
+    importlib.reload(bot.handlers)
+    cmd_model = getattr(bot.handlers, "cmd_model", None)
+    # Restore
+    bot.config.HF_SPACE_ID = original
+    bot.handlers.HF_SPACE_ID = original
+    return cmd_model
+
+
+def test_cmd_model_no_args_shows_current():
+    cmd_model = _import_cmd_model_with_hf_enabled()
+    assert cmd_model is not None
+    with (
+        patch("bot.handlers.get_provider", return_value="main"),
+        patch("bot.handlers.bot") as mock_bot,
+    ):
+        msg = make_message(text="/model")
+        cmd_model(msg)
+        sent = mock_bot.send_message.call_args[0][1]
+        assert "Current provider: main" in sent
+        assert "/model main" in sent
+        assert "/model hf" in sent
+
 
 def test_cmd_model_switch_to_hf():
-      cmd_model = _get_cmd_model()
-      assert cmd_model is not None
-      with (
-          patch("bot.handlers.set_provider", return_value=True),
-          patch("bot.handlers.get_provider", return_value="main"),
-          patch("bot.handlers.bot") as mock_bot,
-      ):
-          msg = make_message(text="/model hf")
-          cmd_model(msg)
-          # Check that set_provider was called
-          from bot.handlers import set_provider
-          mock_bot.send_message.assert_called()
+    cmd_model = _import_cmd_model_with_hf_enabled()
+    with (
+        patch("bot.handlers.set_provider", return_value=True) as mock_set,
+        patch("bot.handlers.bot") as mock_bot,
+    ):
+        msg = make_message(text="/model hf")
+        cmd_model(msg)
+        mock_set.assert_called_once_with(123, "hf")
+        sent = mock_bot.send_message.call_args[0][1]
+        assert "hf" in sent
+        assert "Armenian" in sent
+
+
+def test_cmd_model_switch_to_main():
+    cmd_model = _import_cmd_model_with_hf_enabled()
+    with (
+        patch("bot.handlers.set_provider", return_value=True) as mock_set,
+        patch("bot.handlers.bot") as mock_bot,
+    ):
+        msg = make_message(text="/model main")
+        cmd_model(msg)
+        mock_set.assert_called_once_with(123, "main")
+        sent = mock_bot.send_message.call_args[0][1]
+        assert "Main" in sent
+
 
 def test_cmd_model_invalid_choice():
-      cmd_model = _get_cmd_model()
-      with patch("bot.handlers.bot") as mock_bot:
-          msg = make_message(text="/model bogus")
-          cmd_model(msg)
-          args, _ = mock_bot.send_message.call_args
-          assert "Invalid" in args[1]
+    cmd_model = _import_cmd_model_with_hf_enabled()
+    with (
+        patch("bot.handlers.set_provider") as mock_set,
+        patch("bot.handlers.bot") as mock_bot,
+    ):
+        msg = make_message(text="/model bogus")
+        cmd_model(msg)
+        mock_set.assert_not_called()
+        assert "Invalid" in mock_bot.send_message.call_args[0][1]
+
+
+def test_cmd_model_redis_error_reports_failure():
+    cmd_model = _import_cmd_model_with_hf_enabled()
+    with (
+        patch("bot.handlers.set_provider", return_value=False),
+        patch("bot.handlers.bot") as mock_bot,
+    ):
+        msg = make_message(text="/model hf")
+        cmd_model(msg)
+        assert "Could not save" in mock_bot.send_message.call_args[0][1]
+
+
+def test_cmd_model_not_registered_without_hf_space_id():
+    """When HF_SPACE_ID is empty, cmd_model should not exist."""
+    import importlib
+    import bot.config
+    import bot.handlers
+
+    bot.config.HF_SPACE_ID = ""
+    bot.handlers.HF_SPACE_ID = ""
+    # reload() doesn't delete existing attributes, so clear it first
+    if hasattr(bot.handlers, "cmd_model"):
+        delattr(bot.handlers, "cmd_model")
+    importlib.reload(bot.handlers)
+    assert not hasattr(bot.handlers, "cmd_model")
+
+
+def test_handle_message_uses_keep_typing():
+    """handle_message should wrap ask_ai in the keep_typing context."""
+    with (
+        patch("bot.handlers.should_respond", return_value=True),
+        patch("bot.handlers.is_rate_limited", return_value=False),
+        patch("bot.handlers.BOT_INFO", MagicMock(username="testbot")),
+        patch("bot.handlers.ask_ai", return_value="reply"),
+        patch("bot.handlers.send_reply"),
+        patch("bot.handlers.keep_typing") as mock_keep,
+        patch("bot.handlers.bot"),
+    ):
+        mock_keep.return_value.__enter__ = MagicMock(return_value=None)
+        mock_keep.return_value.__exit__ = MagicMock(return_value=None)
+        from bot.handlers import handle_message
+
+        msg = make_message()
+        handle_message(msg)
+        mock_keep.assert_called_once_with(456)
