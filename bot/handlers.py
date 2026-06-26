@@ -412,62 +412,60 @@ def cmd_roast(message):
     reply = ask_ai(message.from_user.id, f"Write a short, playful, friendly roast of {name}.")
     bot.send_message(message.chat.id, reply)
 
-#______ /about ________
+  # ______ /about ________
 @bot.message_handler(commands=["about"], func=is_allowed)
 def cmd_about(message):
-    prompt = """
-      Generate an "About" message for a high-end AI Programming Assistant.
+      prompt = """
+        Generate an "About" message for a high-end AI Programming Assistant.
 
-      Include:
-      - The Mission: To act as a 24/7 pair-programmer for developers of all levels.
-      - The Tech: Mention it uses advanced Large Language Models (LLMs) to understand complex logic and syntax.
-      - The Philosophy: Focus on clean code, security, and learning rather than just "copy-pasting."
-      - A closing encouraging line (e.g., "Happy coding! 🚀").
+        Include:
+        - The Mission: To act as a 24/7 pair-programmer for developers of all levels.
+        - The Tech: Mention it uses advanced Large Language Models (LLMs) to understand complex logic and syntax.
+        - The Philosophy: Focus on clean code, security, and learning rather than just "copy-pasting."
+        - A closing encouraging line (e.g., "Happy coding! 🚀").
 
-      Tone: Sophisticated, tech-forward, and reliable.
-      Format: Use Markdown for a clean, professional look. Keep it under 150 words.
-      """
+        Tone: Sophisticated, tech-forward, and reliable.
+        Format: Use Markdown for a clean, professional look. Keep it under 150 words.
+        """
 
-    response = ask_ai(message.from_user.id, prompt)
+      response = ask_ai(message.from_user.id, prompt)
+      bot.send_message(message.chat.id, response)
 
-    bot.send_message(message.chat.id, response)
-
-
-    @bot.message_handler(commands=["model"], func=is_allowed)
-    def cmd_model(message):
-        parts = (message.text or "").split(maxsplit=1)
-        if len(parts) == 1:
-            current = get_provider(message.from_user.id)
-            bot.send_message(
-                message.chat.id,
-                f"Current provider: {current}\n\n"
-                "Options:\n"
-                "/model main — Cerebras (fast, multilingual, with memory)\n"
-                "/model hf — ArmGPT (Armenian only, slow, no memory)",
-            )
-            return
-        choice = parts[1].strip().lower()
-        if choice not in ("main", "hf"):
-            bot.send_message(
-                message.chat.id, "Invalid choice. Use: /model main or /model hf"
-            )
-            return
-        if not set_provider(message.from_user.id, choice):
-            bot.send_message(
-                message.chat.id, "Could not save preference. Try again later."
-            )
-            return
-        if choice == "hf":
-            bot.send_message(
-                message.chat.id,
-                "Switched to hf (ArmGPT).\n\n"
-                "Note: this is a tiny base completion model trained only on Armenian text. "
-                "It will continue whatever you write rather than answer questions, "
-                "and it does not understand English. Replies take ~30-60s and there is no memory.",
-            )
-        else:
-            bot.send_message(message.chat.id, "Switched to Main Provider.")
-
+  # <--- MAKE SURE THERE ARE NO SPACES BEFORE THE LINE BELOW --->
+@bot.message_handler(commands=["model"], func=is_allowed)
+def cmd_model(message):
+      parts = (message.text or "").split(maxsplit=1)
+      if len(parts) == 1:
+          current = get_provider(message.from_user.id)
+          bot.send_message(
+              message.chat.id,
+              f"Current provider: {current}\n\n"
+              "Options:\n"
+              "/model main — Cerebras (fast, multilingual, with memory)\n"
+              "/model hf — ArmGPT (Armenian only, slow, no memory)",
+          )
+          return
+      choice = parts[1].strip().lower()
+      if choice not in ("main", "hf"):
+          bot.send_message(
+              message.chat.id, "Invalid choice. Use: /model main or /model hf"
+          )
+          return
+      if not set_provider(message.from_user.id, choice):
+          bot.send_message(
+              message.chat.id, "Could not save preference. Try again later."
+          )
+          return
+      if choice == "hf":
+          bot.send_message(
+              message.chat.id,
+              "Switched to hf (ArmGPT).\n\n"
+              "Note: this is a tiny base completion model trained only on Armenian text. "
+              "It will continue whatever you write rather than answer questions, "
+              "and it does not understand English. Replies take ~30-60s and there is no memory.",
+          )
+      else:
+          bot.send_message(message.chat.id, "Switched to Main Provider.")
 
 @bot.message_handler(content_types=["text"], func=is_allowed)
 def handle_message(message):
