@@ -79,6 +79,13 @@ def cmd_help(message):
       The guide must list these commands clearly using Markdown:
       - /start - Initialize the session
       - /help - Show this menu
+      - /coin - give heads or tails
+      - /joke <topic> - give joke
+      - /quote - give an simple quote
+      - /fact - give an simple fact
+      - /compliment - say a compliment
+      - /roll - give number in range (1-6)
+      - /magic8 - say yes/no (result is random)
       - /explain <code/topic> - Deep dive into how something works
       - /debug <code/error> - Find bugs and suggest fixes
       - /refactor <code/topic> - Improve code quality and efficiency
