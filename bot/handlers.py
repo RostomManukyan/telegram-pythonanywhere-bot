@@ -61,9 +61,7 @@ def cmd_start(message):
       Include:
       - A warm welcome (e.g., "System initialized. Ready to code.")
       - A brief description: "I am your AI pair-programmer. I can help you debug, refactor, explain, or write code."
-      - A "Quick Start" section: Tell them they can just paste code or use commands like /explain or /debug.
       - A mention of /help for the full command list.
-      
       Keep it concise and use Markdown (bolding/emojis) to make it readable on a mobile screen.
       """
 
