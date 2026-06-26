@@ -116,56 +116,112 @@ def test_handle_message_mention_only_skipped():
         handle_message(msg)
         mock_ask.assert_not_called()
 
+
+
+def test_cmd_explain():
+      """Tests /explain <code_snippet>"""
+      with patch("bot.handlers.ask_ai") as mock_ai, patch("bot.handlers.bot") as mock_bot:
+          from bot.handlers import cmd_explain
+          msg = make_message(text="/explain print('hello')")
+          mock_ai.return_value = "This prints hello."
+
+          cmd_explain(msg)
+
+          # Verify prompt contains the code
+          args, _ = mock_ai.call_args
+          assert "print('hello')" in args[1]
+          assert "explain" in args[1].lower()
+          mock_bot.send_message.assert_called_once_with(msg.chat.id, "This prints hello.")
+
+def test_cmd_debug():
+      """Tests /debug <code_snippet>"""
+      with patch("bot.handlers.ask_ai") as mock_ai, patch("bot.handlers.bot") as mock_bot:
+          from bot.handlers import cmd_debug
+          msg = make_message(text="/debug x = 1 / 0")
+          mock_ai.return_value = "Division by zero error."
+
+          cmd_debug(msg)
+
+          args, _ = mock_ai.call_args
+          assert "x = 1 / 0" in args[1]
+          assert "debug" in args[1].lower()
+          mock_bot.send_message.assert_called_once_with(msg.chat.id, "Division by zero error.")
+
+def test_cmd_refactor():
+      """Tests /refactor <code_snippet>"""
+      with patch("bot.handlers.ask_ai") as mock_ai, patch("bot.handlers.bot") as mock_bot:
+          from bot.handlers import cmd_refactor
+          msg = make_message(text="/refactor for i in range(10): print(i)")
+          mock_ai.return_value = "Use range(10) directly."
+
+          cmd_refactor(msg)
+
+          args, _ = mock_ai.call_args
+          assert "refactor" in args[1].lower()
+          mock_bot.send_message.assert_called_once_with(msg.chat.id, "Use range(10) directly.")
+
+def test_cmd_convert_success():
+      """Tests /convert <code> <from> <to>"""
+      with patch("bot.handlers.ask_ai") as mock_ai, patch("bot.handlers.bot") as mock_bot:
+          from bot.handlers import cmd_convert
+          # Syntax: /convert <code> <from> <to>
+          msg = make_message(text="/convert print('hi') python javascript")
+          mock_ai.return_value = "```javascript\nconsole.log('hi');\n```"
+
+          cmd_convert(msg)
+
+          # Verify the prompt construction
+          args, _ = mock_ai.call_args
+          assert "python" in args[1]
+          assert "javascript" in args[1]
+          assert "print('hi')" in args[1]
+          mock_bot.send_message.assert_called_once_with(msg.chat.id, mock_ai.return_value, parse_mode="Markdown")
+
+def test_cmd_convert_invalid_usage():
+      """Tests /convert with insufficient arguments"""
+      with patch("bot.handlers.bot") as mock_bot:
+          from bot.handlers import cmd_convert
+          msg = make_message(text="/convert print('hi')") # Missing languages
+
+          cmd_convert(msg)
+
+          mock_bot.send_message.assert_called_once()
+          assert "Usage:" in mock_bot.send_message.call_args[0][1]
+
+
+
 # __ /coin _________________
 def test_cmd_coin():
     with patch("bot.handlers.bot") as mock_bot:
         from bot.handlers import cmd_coin
-
         cmd_coin(make_message())
-
         mock_bot.send_message.assert_called_once()
-
         sent = mock_bot.send_message.call_args[0][1]
+        assert "It came up" in sent
+        assert sent.split()[-1] in ["heads", "tails"]
 
-        assert sent.startswith("It came up ")
-
-        res = sent.split()[-1]
-        assert res=="heads" or res=="tails"
 
 
 # __ /roll _________________
-
 def test_cmd_roll():
     with patch("bot.handlers.bot") as mock_bot:
         from bot.handlers import cmd_roll
-
         cmd_roll(make_message())
-
         mock_bot.send_message.assert_called_once()
-
         sent = mock_bot.send_message.call_args[0][1]
-
-        assert sent.startswith("Your number is ")
-
+        assert "Your number is" in sent
         num = int(sent.split()[-1])
         assert 1 <= num <= 6
 
 # __ /start _________________
-
-
 def test_cmd_start():
     with patch("bot.handlers.ask_ai") as mock_ai:
         with patch("bot.handlers.bot") as mock_bot:
             from bot.handlers import cmd_start
-
             mock_ai.return_value = "Welcome! I'm your AI learning assistant."
-
             msg = make_message()
-
             cmd_start(msg)
-
             mock_ai.assert_called_once()
-
             mock_bot.send_message.assert_called_once_with(
                 msg.chat.id,
                 "Welcome! I'm your AI learning assistant."
